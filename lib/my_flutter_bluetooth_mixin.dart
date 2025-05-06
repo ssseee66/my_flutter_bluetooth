@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:my_flutter_bluetooth/my_flutter_bluetooth_util.dart';
 
 mixin MyFlutterBluetoothMixin<T extends StatefulWidget> on State<T> {
@@ -11,7 +12,7 @@ mixin MyFlutterBluetoothMixin<T extends StatefulWidget> on State<T> {
   void initState() {
     super.initState();
     util.flutterChannel.setMessageHandler(setMessageChannelHandle);
-    util.setMessageChannel(hashCode.toString(), listenerBluetoothAndroidHandle);
+    util.setMessageChannel(hashCode as String, listenerBluetoothAndroidHandle);
     util.sendChannelName("channelName", hashCode.toString());
   }
   @override

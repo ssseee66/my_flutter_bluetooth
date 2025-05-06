@@ -1,7 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:my_flutter_bluetooth/bluetooth_failed_code.dart';
 import 'package:my_flutter_bluetooth/bluetooth_operation_code.dart';
 
 class MyFlutterBluetoothUtil {
@@ -23,9 +23,9 @@ class MyFlutterBluetoothUtil {
   }
 
   void setMessageChannel(String channelName, Future<dynamic> Function(dynamic message) handler) {
-    messageChannel = BasicMessageChannel(channelName, const StandardMessageCodec());
+    messageChannel = BasicMessageChannel(channelName, StandardMessageCodec());
     messageChannel.setMessageHandler(handler);
-  }
+    }
   void startScan() {
     messageChannel.send({"startScanner": true});
   }
@@ -74,31 +74,6 @@ class MyFlutterBluetoothUtil {
       default:
         return BluetoothOperationCode.OTHER_ERROR;
     }
-  }
-  Enum getFailedCode(int code) {
-    switch (code) {
-      case 0:
-        return BluetoothFailedCode.NOT_SET_ANTENNA_NUM;
-      case 1:
-        return BluetoothFailedCode.READER_OPERATION_FAILED;
-      case 2:
-        return BluetoothFailedCode.NOT_APPEAR_OVER;
-      case 3:
-        return BluetoothFailedCode.SET_ANTENNA_NUM_FAILED;
-      case 4:
-        return BluetoothFailedCode.SET_ANTENNA_POWER_FAILED;
-      case 5:
-        return BluetoothFailedCode.QUERY_RFID_CAPACITY_FAILED;
-      case 6:
-        return BluetoothFailedCode.CONNECT_FAILED;
-      case 7:
-        return BluetoothFailedCode.NOT_SUPPORT_BLUETOOTH;
-      case 8:
-        return BluetoothFailedCode.BLUETOOTH_NOT_TURN_ON;
-      case 9:
-        return BluetoothFailedCode.PERMISSION_DENIED;
-      default:
-        return BluetoothFailedCode.ERROR_CODE;
-    }
+
   }
 }

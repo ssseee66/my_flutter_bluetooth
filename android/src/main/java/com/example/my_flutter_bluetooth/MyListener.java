@@ -1,5 +1,7 @@
 package com.example.my_flutter_bluetooth;
 
+import android.Manifest;
+import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.le.ScanResult;
 import android.content.Context;
@@ -7,8 +9,10 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import android.content.pm.PackageManager;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 
 import com.gg.reader.api.dal.GClient;
 import com.gg.reader.api.dal.HandlerDebugLog;
@@ -39,6 +43,8 @@ import io.flutter.plugin.common.BinaryMessenger;
 import io.flutter.plugin.common.StandardMessageCodec;
 
 public class MyListener {
+    private final Context applicationContext;
+    private final BluetoothAdapter defaultAdapter = BluetoothAdapter.getDefaultAdapter();
     private BasicMessageChannel<Object> message_channel;
     private final UUID SERVICE_UUID = UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb");
     private final GClient client = new GClient();
@@ -53,60 +59,6 @@ public class MyListener {
     List<BluetoothPeripheral> peripherals = new LinkedList<>();   // 搜索到的设备列表
     Map<Integer, String> epcMessagesMap = new HashMap<>();
 
-    //  蓝牙适配器相关回调函数，这里只是重写了扫描附近蓝牙设备、以及蓝牙连接相关的方法
-    BluetoothCentralManagerCallback centralManagerCallback = new BluetoothCentralManagerCallback() {
-        @Override    //  蓝牙管理类实例对象调用扫描蓝牙设备方法后会调用此方法
-        public void onDiscoveredPeripheral(BluetoothPeripheral peripheral, ScanResult scanResult) {
-            //  将蓝牙设备进行过滤，避免蓝牙设备重复、以及蓝牙设备名称为空
-            if (!peripherals.contains(peripheral) && !peripheral.getName().isEmpty()) {
-                Log.e("peripheralAddress", peripheral.getAddress());
-                peripherals.add(peripheral);
-                deviceMap.put(peripheral.getName(), peripheral.getAddress());
-                messageMap.clear();
-                messageMap.put("message", deviceMap);
-                messageMap.put("isSuccessful", true);
-                messageMap.put("operationCode", 4);
-                message_channel.send(messageMap);
-            }
-        }
-        @Override   // 蓝牙连接成功时调用
-        public void onConnectedPeripheral(BluetoothPeripheral peripheral) {
-            Log.i("connectInfo", "Connected successful ==> " +
-                    peripheral.getName() + ":" + peripheral.getAddress());
-            messageMap.clear();
-            messageMap.put("message", new HashMap<String, String>() {{
-                put(peripheral.getName(), peripheral.getAddress());
-            }});
-            messageMap.put("isSuccessful", true);
-            messageMap.put("operationCode", 2);
-            message_channel.send(messageMap);
-        }
-        @Override
-        public void onConnectionFailed(BluetoothPeripheral peripheral, HciStatus status) {
-            Log.e("connectInfo", "Connected failed ==> " +
-                    peripheral.getName() + ":" + peripheral.getAddress());
-            messageMap.clear();
-            messageMap.put("message", new HashMap<String, String>() {{
-                put(peripheral.getName(), peripheral.getAddress());
-            }});
-            messageMap.put("isSuccessful", false);
-            messageMap.put("operationCode", 2);
-            message_channel.send(messageMap);
-        }
-        @Override
-        public void onDisconnectedPeripheral(BluetoothPeripheral peripheral, HciStatus status) {
-            Log.i("connectInfo", "Disconnect ==> " +
-                    peripheral.getName() + ":" + peripheral.getAddress());
-            messageMap.clear();
-            messageMap.put("message", new HashMap<String, String>() {{
-                put(peripheral.getName(), peripheral.getAddress());
-            }});
-            messageMap.put("isSuccessful", true);
-            messageMap.put("operationCode", 3);
-            message_channel.send(messageMap);
-        }
-    };
-
     MyListener(String channelName, Context applicationContext, BinaryMessenger binaryMessenger) {
 
         message_channel = new BasicMessageChannel<>(   //  实例化通信通道对象
@@ -114,6 +66,7 @@ public class MyListener {
                 channelName,
                 StandardMessageCodec.INSTANCE
         );
+        this.applicationContext = applicationContext;
 
         Log.i("listener_channel_name", channelName);
 
@@ -121,7 +74,7 @@ public class MyListener {
         setActionMaps();    // 初始化存放指令方法的Map
 
         central = new BluetoothCentralManager(    // 实例化蓝牙管理对象
-                applicationContext,
+                this.applicationContext,
                 centralManagerCallback,
                 new Handler(Looper.getMainLooper()));
         message_channel.setMessageHandler((message, reply) -> {   // 设置通信通道对象监听方法
@@ -135,8 +88,10 @@ public class MyListener {
                 messageMap.clear();
                 messageMap.put("message", "Instruction error");
                 messageMap.put("isSuccessful", false);
+                messageMap.put("failedCode", 10);
                 messageMap.put("operationCode", 10);
                 message_channel.send(messageMap);
+                return;
             }
             // 根据key值判断执行何种指令何种方法
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -178,6 +133,18 @@ public class MyListener {
         if (!(boolean) value) return;
         peripherals.clear();
         deviceMap.clear();   // 扫描前先将相关链表清空，以免污染后续数据
+        if (defaultAdapter == null) {
+            unsupportedBluetooth(0);
+            return;
+        }
+        if (!defaultAdapter.isEnabled()) {
+            unopenedBluetooth(0);
+            return;
+        }
+        if (!checkPermission()) {
+            permissionDenied(0);
+            return;
+        }
         Log.i("ScanInfo", "Start scan");
         messageMap.clear();    //  发送信息前将集合内容清空，以免信息混乱
         messageMap.put("message", "Start scan");
@@ -190,6 +157,18 @@ public class MyListener {
         Object value = arguments.get(key);
         if (value == null) return;
         if (!(boolean) value) return;
+        if (defaultAdapter == null) {
+            unsupportedBluetooth(1);
+            return;
+        }
+        if (!defaultAdapter.isEnabled()) {
+            unopenedBluetooth(1);
+            return;
+        }
+        if (!checkPermission()) {
+            permissionDenied(1);
+            return;
+        }
         Log.i("ScanInfo", "Stop scan");  //  日志，方便后续调试观察运行情况
         messageMap.clear();
         messageMap.put("message", "Stop scan");
@@ -200,6 +179,18 @@ public class MyListener {
     private void connectBleDevice(String key) {
         String bluetooth_address = (String) arguments.get(key);
         if (bluetooth_address == null) return;
+        if (defaultAdapter == null) {
+            unsupportedBluetooth(2);
+            return;
+        }
+        if (!defaultAdapter.isEnabled()) {
+            unopenedBluetooth(2);
+            return;
+        }
+        if (!checkPermission()) {
+            permissionDenied(2);
+            return;
+        }
         Log.i("address", bluetooth_address);
         BluetoothPeripheral peripheral = central.getPeripheral(bluetooth_address);
         BleDevice device = setBleDevice(peripheral);
@@ -227,6 +218,18 @@ public class MyListener {
         Object value = arguments.get(key);
         if (value == null) return;
         if (!(boolean) value) return;   // 当值不为真时直接跳出方法，只有为真时才进行后续操作
+        if (defaultAdapter == null) {
+            unsupportedBluetooth(3);
+            return;
+        }
+        if (!defaultAdapter.isEnabled()) {
+            unopenedBluetooth(3);
+            return;
+        }
+        if (!checkPermission()) {
+            permissionDenied(3);
+            return;
+        }
         client.close();
         // 主动关闭连接
         Log.i("closeConnectInfo", "Actively close the device connection");
@@ -246,6 +249,7 @@ public class MyListener {
             messageMap.put("message", "The antenna port is not configured. " +
                     "Please configure the antenna port first");
             messageMap.put("isSuccessful", false);
+            messageMap.put("failedCode", 0);
             messageMap.put("operationCode", 5);
             message_channel.send(messageMap);
             return;  //  当执行完未设置使能端口的相关操作便跳出方法，后续语句不再执行
@@ -274,6 +278,7 @@ public class MyListener {
                 put("failedInfo", msgBaseInventoryEpc.getRtMsg());
             }});
             messageMap.put("isSuccessful", false);
+            messageMap.put("failedCode", 1);
             messageMap.put("operationCode", 5);
             message_channel.send(messageMap);
         }
@@ -305,6 +310,7 @@ public class MyListener {
             Log.e("readDataInfo", "Unfinished reporting");
             messageMap.clear();
             messageMap.put("message", "Unfinished reporting");
+            messageMap.put("failedCode", 2);
             messageMap.put("isSuccessful", false);
         }
         messageMap.put("operationCode", 6);
@@ -330,6 +336,7 @@ public class MyListener {
             messageMap.clear();
             messageMap.put("message", "Antenna setting failed");
             messageMap.put("isSuccessful", false);
+            messageMap.put("failedCode", 3);
         } else {
             Log.i("setAntennaNumInfo", "Antenna setting successful");
             messageMap.clear();
@@ -381,6 +388,7 @@ public class MyListener {
                 messageMap.clear();
                 messageMap.put("message", "The antenna power setting failed");
                 messageMap.put("isSuccessful", false);
+                messageMap.put("failedCode", 4);
             }
         } else {
             Log.e("antennaPowerInfo", "The antenna power setting failed: " +
@@ -388,6 +396,7 @@ public class MyListener {
             messageMap.clear();
             messageMap.put("message", "The antenna power setting failed");
             messageMap.put("isSuccessful", false);
+            messageMap.put("failedCode", 4);
         }
         messageMap.put("operationCode", 8);
         message_channel.send(messageMap);
@@ -413,6 +422,7 @@ public class MyListener {
             messageMap.clear();
             messageMap.put("message", "Query failed");
             messageMap.put("isSuccessful", false);
+            messageMap.put("failedCode", 5);
         }
         messageMap.put("operationCode", 9);
         message_channel.send(messageMap);
@@ -434,6 +444,61 @@ public class MyListener {
         }
         return  powerMap;
     }
+    //  蓝牙适配器相关回调函数，这里只是重写了扫描附近蓝牙设备、以及蓝牙连接相关的方法
+    BluetoothCentralManagerCallback centralManagerCallback = new BluetoothCentralManagerCallback() {
+        @Override    //  蓝牙管理类实例对象调用扫描蓝牙设备方法后会调用此方法
+        public void onDiscoveredPeripheral(BluetoothPeripheral peripheral, ScanResult scanResult) {
+            //  将蓝牙设备进行过滤，避免蓝牙设备重复、以及蓝牙设备名称为空
+            if (!peripherals.contains(peripheral) && !peripheral.getName().isEmpty()) {
+                Log.e("peripheralAddress", peripheral.getAddress());
+                peripherals.add(peripheral);
+                deviceMap.put(peripheral.getName(), peripheral.getAddress());
+                messageMap.clear();
+                messageMap.put("message", deviceMap);
+                messageMap.put("isSuccessful", true);
+                messageMap.put("operationCode", 4);
+                message_channel.send(messageMap);
+            }
+        }
+        @Override   // 蓝牙连接成功时调用
+        public void onConnectedPeripheral(BluetoothPeripheral peripheral) {
+            Log.i("connectInfo", "Connected successful ==> " +
+                    peripheral.getName() + ":" + peripheral.getAddress());
+            messageMap.clear();
+
+            messageMap.put("message", new HashMap<String, String>() {{
+                put(peripheral.getName(), peripheral.getAddress());
+            }});
+            messageMap.put("isSuccessful", true);
+            messageMap.put("operationCode", 2);
+            message_channel.send(messageMap);
+        }
+        @Override
+        public void onConnectionFailed(BluetoothPeripheral peripheral, HciStatus status) {
+            Log.e("connectInfo", "Connected failed ==> " +
+                    peripheral.getName() + ":" + peripheral.getAddress());
+            messageMap.clear();
+            messageMap.put("message", new HashMap<String, String>() {{
+                put(peripheral.getName(), peripheral.getAddress());
+            }});
+            messageMap.put("isSuccessful", false);
+            messageMap.put("failedCode", 6);
+            messageMap.put("operationCode", 2);
+            message_channel.send(messageMap);
+        }
+        @Override
+        public void onDisconnectedPeripheral(BluetoothPeripheral peripheral, HciStatus status) {
+            Log.i("connectInfo", "Disconnect ==> " +
+                    peripheral.getName() + ":" + peripheral.getAddress());
+            messageMap.clear();
+            messageMap.put("message", new HashMap<String, String>() {{
+                put(peripheral.getName(), peripheral.getAddress());
+            }});
+            messageMap.put("isSuccessful", true);
+            messageMap.put("operationCode", 3);
+            message_channel.send(messageMap);
+        }
+    };
 
     private void subscriberHandler() {   //  订阅标签TCP事件
         client.onTagEpcLog = (s, logBaseEpcInfo) -> {   // EPC标签上报事件
@@ -458,6 +523,89 @@ public class MyListener {
                 Log.e("receiveDebugLog",msg);
             }
         };
+    }
+
+    private void unsupportedBluetooth(int code) {
+        messageMap.clear();
+        messageMap.put("message", "This device does not support Bluetooth");
+        messageMap.put("isSuccessful", false);
+        messageMap.put("failedCode", 7);
+        messageMap.put("operationCode", code);
+        message_channel.send(messageMap);
+    }
+    private void unopenedBluetooth(int code) {
+        messageMap.clear();
+        messageMap.put("message", "Bluetooth is not turned on. Please turn it on");
+        messageMap.put("isSuccessful", false);
+        messageMap.put("failedCode", 8);
+        messageMap.put("operationCode", code);
+        message_channel.send(messageMap);
+    }
+    private void permissionDenied(int code) {
+        // 权限不足，请检查相关权限并授予
+        messageMap.clear();
+        messageMap.put("message", "Insufficient permissions. " +
+                "Please check the relevant permissions and grant them");
+        messageMap.put("isSuccessful", false);
+        messageMap.put("failedCode", 9);
+        messageMap.put("operationCode", code);
+        message_channel.send(messageMap);
+    }
+    private boolean checkPermission() {
+        int denied = PackageManager.PERMISSION_DENIED;
+        if (ContextCompat.checkSelfPermission(
+                applicationContext, Manifest.permission.BLUETOOTH) == denied) {
+            Log.e("notPermission", "BLUETOOTH");
+            return false;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ContextCompat.checkSelfPermission(
+                    applicationContext, Manifest.permission.BLUETOOTH_SCAN) == denied) {
+                Log.e("notPermission", "BLUETOOTH_SCAN");
+                return false;
+            }
+        }
+        if (ContextCompat.checkSelfPermission(
+                applicationContext, Manifest.permission.BLUETOOTH_ADMIN) == denied) {
+            Log.e("notPermission", "BLUETOOTH_ADMIN");
+            return false;
+        }
+        if (ContextCompat.checkSelfPermission(
+                applicationContext, Manifest.permission.BLUETOOTH_CONNECT) == denied) {
+            Log.e("notPermission", "BLUETOOTH_CONNECT");
+            return false;
+        }
+        if (ContextCompat.checkSelfPermission(
+                applicationContext, Manifest.permission.ACCESS_FINE_LOCATION) == denied) {
+            Log.e("notPermission", "ACCESS_FINE_LOCATION");
+            return false;
+        }
+        if (ContextCompat.checkSelfPermission(
+                applicationContext, Manifest.permission.ACCESS_COARSE_LOCATION) == denied) {
+            Log.e("notPermission", "ACCESS_COARSE_LOCATION");
+            return false;
+        }
+        if (ContextCompat.checkSelfPermission(
+                applicationContext, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == denied) {
+            Log.e("notPermission", "ACCESS_BACKGROUND_LOCATION");
+            return false;
+        }
+        if (ContextCompat.checkSelfPermission(
+                applicationContext, Manifest.permission.READ_EXTERNAL_STORAGE) == denied) {
+            Log.e("notPermission", "READ_EXTERNAL_STORAGE");
+            return false;
+        }
+        if (ContextCompat.checkSelfPermission(
+                applicationContext, Manifest.permission.WRITE_EXTERNAL_STORAGE) == denied) {
+            Log.e("notPermission", "WRITE_EXTERNAL_STORAGE");
+            return false;
+        }
+        if (ContextCompat.checkSelfPermission(
+                applicationContext, Manifest.permission.INTERNET) == denied) {
+            Log.e("notPermission", "INTERNET");
+            return false;
+        }
+        return true;
     }
 
     public void setMessage_channel(BasicMessageChannel<Object> message_channel) {
