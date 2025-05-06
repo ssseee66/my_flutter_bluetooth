@@ -12,7 +12,7 @@ mixin MyFlutterBluetoothMixin<T extends StatefulWidget> on State<T> {
   void initState() {
     super.initState();
     util.flutterChannel.setMessageHandler(setMessageChannelHandle);
-    util.setMessageChannel(hashCode as String, listenerBluetoothAndroidHandle);
+    util.setMessageChannel(hashCode.toString(), listenerBluetoothAndroidHandle);
     util.sendChannelName("channelName", hashCode.toString());
   }
   @override
