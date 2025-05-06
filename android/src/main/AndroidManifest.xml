@@ -1,0 +1,26 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+  package="com.example.my_flutter_bluetooth">
+    <!--  允许应用程序连接到配对的蓝牙设备  -->
+    <uses-permission android:name="android.permission.BLUETOOTH"/>
+    <!--  需要能够发现和配对附近的蓝牙设备  -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"/>
+    <!--  允许应用程序发现和配对蓝牙设备  -->
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>
+    <!--  需要能够连接到配对的蓝牙设备  -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
+<!--    <uses-permission android:name="android.permission.BLUETOOTH_PRIVILEGED"-->
+<!--        tools:ignore="ProtectedPermissions" />-->
+    <!--  需要能够向附近的蓝牙设备做广告 Android 12 -->
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE"/>
+
+    <uses-permission android:name="com.google.android.things.permission.MANAGE_BLUETOOTH" />
+    <!--  获得定位  -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!--  允许应用程序访问外部文件  -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
+<!--    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>-->
+</manifest>
