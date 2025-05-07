@@ -49,7 +49,7 @@ public class MyFlutterBluetoothPlugin implements FlutterPlugin {
 
     @Override
     public void onDetachedFromEngine(@NonNull FlutterPluginBinding flutterPluginBinding) {
-        listener.setMessage_channel(null);
+//        listener.setMessage_channel(null);
         listener = null;
         flutter_channel = null;
     }

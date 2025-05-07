@@ -30,11 +30,13 @@ import com.peripheral.ble.HciStatus;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -45,7 +47,7 @@ import io.flutter.plugin.common.StandardMessageCodec;
 public class MyListener {
     private final Context applicationContext;
     private final BluetoothAdapter defaultAdapter = BluetoothAdapter.getDefaultAdapter();
-    private BasicMessageChannel<Object> message_channel;
+    private BasicMessageChannel<Object> messageChannel;
     private final UUID SERVICE_UUID = UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb");
     private final GClient client = new GClient();
     private Map<String, Object> arguments;
@@ -57,11 +59,11 @@ public class MyListener {
 
     Map<String, String> deviceMap = new HashMap<>();      // 设备名称和mac地址信息列表
     List<BluetoothPeripheral> peripherals = new LinkedList<>();   // 搜索到的设备列表
-    Map<Integer, String> epcMessagesMap = new HashMap<>();
+    Set<String> epcMessageSet = new HashSet<>();
 
     MyListener(String channelName, Context applicationContext, BinaryMessenger binaryMessenger) {
 
-        message_channel = new BasicMessageChannel<>(   //  实例化通信通道对象
+        messageChannel = new BasicMessageChannel<>(   //  实例化通信通道对象
                 binaryMessenger,
                 channelName,
                 StandardMessageCodec.INSTANCE
@@ -77,7 +79,7 @@ public class MyListener {
                 this.applicationContext,
                 centralManagerCallback,
                 new Handler(Looper.getMainLooper()));
-        message_channel.setMessageHandler((message, reply) -> {   // 设置通信通道对象监听方法
+        messageChannel.setMessageHandler((message, reply) -> {   // 设置通信通道对象监听方法
             arguments = castMap(message, String.class, Object.class);
             if (arguments == null) return;
             String key = getCurrentKey();
@@ -90,7 +92,7 @@ public class MyListener {
                 messageMap.put("isSuccessful", false);
                 messageMap.put("failedCode", 10);
                 messageMap.put("operationCode", 10);
-                message_channel.send(messageMap);
+                messageChannel.send(messageMap);
                 return;
             }
             // 根据key值判断执行何种指令何种方法
@@ -110,6 +112,7 @@ public class MyListener {
         actionMap.put("setAntennaNum",     this :: setAntennaNum);
         actionMap.put("setAntennaPower",   this :: setAntennaPower);
         actionMap.put("queryRfidCapacity", this :: queryRfidCapacity);
+        actionMap.put("destroy",           this :: destroy);
     }
 
     private String getCurrentKey() {
@@ -124,6 +127,7 @@ public class MyListener {
         else if (arguments.containsKey("setAntennaNum"))      key = "setAntennaNum";
         else if (arguments.containsKey("setAntennaPower"))    key = "setAntennaPower";
         else if (arguments.containsKey("queryRfidCapacity"))  key = "queryRfidCapacity";
+        else if (arguments.containsKey("destroy"))            key = "destroy";
         return key;
     }
 
@@ -150,7 +154,7 @@ public class MyListener {
         messageMap.put("message", "Start scan");
         messageMap.put("isSuccessful", true);
         messageMap.put("operationCode", 1);
-        message_channel.send(messageMap);
+        messageChannel.send(messageMap);
         central.scanForPeripherals();   //  扫描附近蓝牙设备
     }
     private void stopScanBleDevice(String key) {  // 停止扫描蓝牙设备
@@ -237,7 +241,7 @@ public class MyListener {
         messageMap.put("message", "The connection has been closed");
         messageMap.put("isSuccessful", true);
         messageMap.put("operationCode", 3);
-        message_channel.send(messageMap);
+        messageChannel.send(messageMap);
     }
     private void startReader(String key) {
         Object value = arguments.get(key);
@@ -251,7 +255,7 @@ public class MyListener {
             messageMap.put("isSuccessful", false);
             messageMap.put("failedCode", 0);
             messageMap.put("operationCode", 5);
-            message_channel.send(messageMap);
+            messageChannel.send(messageMap);
             return;  //  当执行完未设置使能端口的相关操作便跳出方法，后续语句不再执行
         }
         //  实例化EPC标签读卡对象
@@ -267,7 +271,7 @@ public class MyListener {
             // 读卡操作成功
             Log.i("readInfo", "The card reading operation was successful");
             operationSuccess = true;
-            epcMessagesMap.clear();
+            epcMessageSet.clear();
             APPEAR_OVER = false;
         } else {
             // 读卡操作失败
@@ -280,7 +284,7 @@ public class MyListener {
             messageMap.put("isSuccessful", false);
             messageMap.put("failedCode", 1);
             messageMap.put("operationCode", 5);
-            message_channel.send(messageMap);
+            messageChannel.send(messageMap);
         }
         // 搞不懂为什么要在外层进行通讯才行，在里面发送的话会发送不了
         // 并且通讯方法只能在主线程中调用，无法通过创建新线程处理
@@ -289,7 +293,7 @@ public class MyListener {
         messageMap.put("message", "The card reading operation was successful");
         messageMap.put("isSuccessful", true);
         messageMap.put("operationCode", 5);
-        message_channel.send(messageMap);
+        messageChannel.send(messageMap);
     }
     private void startReaderEpc(String key) {
         /*
@@ -302,9 +306,9 @@ public class MyListener {
         if (!(boolean) value) return;
         Log.i("readDataInfo", "Start reading the data");
         if (APPEAR_OVER) {
-            Log.i("readDataInfo", epcMessagesMap.toString());
+            Log.i("readDataInfo", epcMessageSet.toString());
             messageMap.clear();
-            messageMap.put("message", epcMessagesMap);
+            messageMap.put("message", epcMessageSet);
             messageMap.put("isSuccessful", true);
         } else {
             Log.e("readDataInfo", "Unfinished reporting");
@@ -314,7 +318,7 @@ public class MyListener {
             messageMap.put("isSuccessful", false);
         }
         messageMap.put("operationCode", 6);
-        message_channel.send(messageMap);
+        messageChannel.send(messageMap);
     }
     private void setAntennaNum(String key) {   //  设置使能端口
         List<Integer> antenna_numbers = castList(arguments.get(key), Integer.class);
@@ -344,7 +348,7 @@ public class MyListener {
             messageMap.put("isSuccessful", true);
         }
         messageMap.put("operationCode", 7);
-        message_channel.send(messageMap);
+        messageChannel.send(messageMap);
     }
     private Long getANTENNA_NUM(int antenna_num) {
         /*
@@ -399,7 +403,7 @@ public class MyListener {
             messageMap.put("failedCode", 4);
         }
         messageMap.put("operationCode", 8);
-        message_channel.send(messageMap);
+        messageChannel.send(messageMap);
     }
     private void queryRfidCapacity(String key) {   // 查询蓝牙的读写能力信息
         Object value = arguments.get(key);
@@ -425,7 +429,14 @@ public class MyListener {
             messageMap.put("failedCode", 5);
         }
         messageMap.put("operationCode", 9);
-        message_channel.send(messageMap);
+        messageChannel.send(messageMap);
+    }
+    private void destroy(String key) {
+        Object value = arguments.get(key);
+        if (value == null) return;
+        if (!(boolean) value) return;
+        messageChannel = null;
+        client.close();
     }
     @NonNull
     private static Map<String, Integer> getRfidMessage(
@@ -457,7 +468,7 @@ public class MyListener {
                 messageMap.put("message", deviceMap);
                 messageMap.put("isSuccessful", true);
                 messageMap.put("operationCode", 4);
-                message_channel.send(messageMap);
+                messageChannel.send(messageMap);
             }
         }
         @Override   // 蓝牙连接成功时调用
@@ -471,7 +482,7 @@ public class MyListener {
             }});
             messageMap.put("isSuccessful", true);
             messageMap.put("operationCode", 2);
-            message_channel.send(messageMap);
+            messageChannel.send(messageMap);
         }
         @Override
         public void onConnectionFailed(BluetoothPeripheral peripheral, HciStatus status) {
@@ -484,7 +495,7 @@ public class MyListener {
             messageMap.put("isSuccessful", false);
             messageMap.put("failedCode", 6);
             messageMap.put("operationCode", 2);
-            message_channel.send(messageMap);
+            messageChannel.send(messageMap);
         }
         @Override
         public void onDisconnectedPeripheral(BluetoothPeripheral peripheral, HciStatus status) {
@@ -496,21 +507,22 @@ public class MyListener {
             }});
             messageMap.put("isSuccessful", true);
             messageMap.put("operationCode", 3);
-            message_channel.send(messageMap);
+            messageChannel.send(messageMap);
         }
     };
+
 
     private void subscriberHandler() {   //  订阅标签TCP事件
         client.onTagEpcLog = (s, logBaseEpcInfo) -> {   // EPC标签上报事件
             if (logBaseEpcInfo.getResult() == 0) {
                 Log.i("epcDataInfo", logBaseEpcInfo.getEpc() + " ==> " + logBaseEpcInfo.getAntId());
-                epcMessagesMap.put(logBaseEpcInfo.getAntId(), logBaseEpcInfo.getEpc());
+                epcMessageSet.add(logBaseEpcInfo.getEpc() + "#" + logBaseEpcInfo.getAntId());
             }
         };
         client.onTagEpcOver = (s, logBaseEpcOver) -> {   //  EPC标签上报结束事件
             Log.i("handlerTagEpcOver", logBaseEpcOver.getRtMsg());
             // send();
-            Log.i("epcAppearOver", epcMessagesMap.toString());
+            Log.i("epcAppearOver", epcMessageSet.toString());
             APPEAR_OVER = true;
         };
 
@@ -531,7 +543,7 @@ public class MyListener {
         messageMap.put("isSuccessful", false);
         messageMap.put("failedCode", 7);
         messageMap.put("operationCode", code);
-        message_channel.send(messageMap);
+        messageChannel.send(messageMap);
     }
     private void unopenedBluetooth(int code) {
         messageMap.clear();
@@ -539,7 +551,7 @@ public class MyListener {
         messageMap.put("isSuccessful", false);
         messageMap.put("failedCode", 8);
         messageMap.put("operationCode", code);
-        message_channel.send(messageMap);
+        messageChannel.send(messageMap);
     }
     private void permissionDenied(int code) {
         // 权限不足，请检查相关权限并授予
@@ -549,7 +561,7 @@ public class MyListener {
         messageMap.put("isSuccessful", false);
         messageMap.put("failedCode", 9);
         messageMap.put("operationCode", code);
-        message_channel.send(messageMap);
+        messageChannel.send(messageMap);
     }
     private boolean checkPermission() {
         int denied = PackageManager.PERMISSION_DENIED;
@@ -606,10 +618,6 @@ public class MyListener {
             return false;
         }
         return true;
-    }
-
-    public void setMessage_channel(BasicMessageChannel<Object> message_channel) {
-        this.message_channel = message_channel;
     }
 
     private <V> List<V> castList(Object obj, Class<V> value) {

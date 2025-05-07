@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:my_flutter_bluetooth/bluetooth_operation_code.dart';
 
@@ -10,8 +9,7 @@ class MyFlutterBluetoothUtil {
   factory MyFlutterBluetoothUtil() => _instance;
   static final MyFlutterBluetoothUtil _instance = MyFlutterBluetoothUtil._();
 
-  String messageChannelName = "";
-  BasicMessageChannel flutterChannel = const BasicMessageChannel("flutter_bluetooth_android", StandardMessageCodec());
+  BasicMessageChannel flutterChannel = const BasicMessageChannel("my_flutter_bluetooth", StandardMessageCodec());
   BasicMessageChannel messageChannel = const BasicMessageChannel("null", StandardMessageCodec());
 
   void sendMessageToAndroid(String methodName, dynamic arg) async {
@@ -23,9 +21,9 @@ class MyFlutterBluetoothUtil {
   }
 
   void setMessageChannel(String channelName, Future<dynamic> Function(dynamic message) handler) {
-    messageChannel = BasicMessageChannel(channelName, StandardMessageCodec());
+    messageChannel = BasicMessageChannel(channelName, const StandardMessageCodec());
     messageChannel.setMessageHandler(handler);
-    }
+  }
   void startScan() {
     messageChannel.send({"startScanner": true});
   }
@@ -46,6 +44,9 @@ class MyFlutterBluetoothUtil {
   }
   void readerData() {
     messageChannel.send({"startReaderEpc": true});
+  }
+  void destroy() {
+    messageChannel.send({"destroy": true});
   }
   Enum getOperationAction(int code) {
     switch (code) {
