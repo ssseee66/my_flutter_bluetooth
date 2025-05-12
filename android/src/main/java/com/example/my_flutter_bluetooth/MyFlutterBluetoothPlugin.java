@@ -14,7 +14,7 @@ import io.flutter.plugin.common.StandardMessageCodec;
 
 /** RfidReaderPlugin */
 public class MyFlutterBluetoothPlugin implements FlutterPlugin {
-    private static final String FLUTTER_TO_ANDROID_CHANNEL = "flutter_bluetooth_android";
+    private static final String FLUTTER_TO_ANDROID_CHANNEL = "my_flutter_bluetooth";
     private Context applicationContext;
     private MyListener listener;
     private BasicMessageChannel<Object> flutter_channel;

@@ -436,6 +436,7 @@ public class MyListener {
         if (value == null) return;
         if (!(boolean) value) return;
         messageChannel = null;
+        central.stopScan();
         client.close();
     }
     @NonNull
@@ -582,10 +583,12 @@ public class MyListener {
             Log.e("notPermission", "BLUETOOTH_ADMIN");
             return false;
         }
-        if (ContextCompat.checkSelfPermission(
-                applicationContext, Manifest.permission.BLUETOOTH_CONNECT) == denied) {
-            Log.e("notPermission", "BLUETOOTH_CONNECT");
-            return false;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ContextCompat.checkSelfPermission(
+                    applicationContext, Manifest.permission.BLUETOOTH_CONNECT) == denied) {
+                Log.e("notPermission", "BLUETOOTH_CONNECT");
+                return false;
+            }
         }
         if (ContextCompat.checkSelfPermission(
                 applicationContext, Manifest.permission.ACCESS_FINE_LOCATION) == denied) {
